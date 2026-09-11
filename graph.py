@@ -6,6 +6,7 @@ from nodes import (
     draft_section,
     fan_out_sections,
     plan_research,
+    reseach_is_sufficient,
     web_search,
 )
 from schemas import State
@@ -20,7 +21,7 @@ builder.add_node("assemble_article", assemble_article)
 
 builder.add_edge(START, "plan_research")
 builder.add_edge("plan_research", "web_search")
-builder.add_edge("web_search", "build_outline")
+builder.add_conditional_edges("web_search", reseach_is_sufficient, ["plan_research", "build_outline"])
 builder.add_conditional_edges("build_outline", fan_out_sections, ["draft_section"])
 builder.add_edge("draft_section", "assemble_article")
 builder.add_edge("assemble_article", END)

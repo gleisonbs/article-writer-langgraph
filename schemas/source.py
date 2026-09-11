@@ -6,3 +6,4 @@ class Source(TypedDict):
     title: str
     url: str
     content: str
+    facets: list[str]
