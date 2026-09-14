@@ -26,4 +26,7 @@ def build_outline(state: State) -> dict:
         cites = ", ".join(str(id) for id in section.source_ids)
         log_info(f"  {section.index}. {section.heading} (sources {cites})")
 
+    section_target_words = state["target_words"] // len(outline.sections)  # type: ignore
+    for section in outline.sections:  # type: ignore
+        section.target_words = section_target_words
     return {"outline": outline.sections}  # type: ignore

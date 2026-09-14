@@ -9,6 +9,7 @@ def web_search(state: State) -> dict:
     log_info(f"Running {plural(len(state['queries']), 'query', 'queries')}")
 
     seen = {s["url"] for s in state["sources"]}
+    first_id = len(state["sources"]) + 1
     sources: list[Source] = []
 
     for planned_query in state["queries"]:
@@ -21,13 +22,16 @@ def web_search(state: State) -> dict:
             log_info(f"  Found: {hit['title']} ({hit['url']}) [{planned_query.facet}]")
             sources.append(
                 {
-                    "id": len(sources) + 1,
+                    "id": first_id + len(sources),
                     "title": hit["title"],
                     "url": hit["url"],
                     "content": hit["content"],
-                    "facets": [planned_query.facet]
+                    "facets": [planned_query.facet],
                 }
             )
 
-    log_info(f"Collected {plural(len(sources), 'unique source')}")
+    log_info(
+        f"Collected {plural(len(sources), 'new source')} "
+        f"({len(state['sources']) + len(sources)} total)"
+    )
     return {"sources": sources, "query_log": [q.query for q in state["queries"]]}

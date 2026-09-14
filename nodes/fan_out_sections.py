@@ -29,6 +29,8 @@ def fan_out_sections(state: State):
                     "section": section,
                     "headings": headings,
                     "sources": sources,
+                    "audience": state["audience"],
+                    "tone": state["tone"],
                 },
             )
         )

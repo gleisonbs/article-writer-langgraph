@@ -7,11 +7,10 @@ def assemble_article(state: State) -> dict:
 
     log_info(f"Putting {plural(len(state['drafted']), 'section')} in order:")
 
-    ordered = sorted(state["drafted"], key=lambda s: s.index)
-    for section in ordered:
+    for section in state["drafted"]:
         log_info(f"  {section.index}. {section.heading}")
 
-    article = "\n\n".join(f"## {s.heading}\n\n{s.draft}" for s in ordered)
+    article = "\n\n".join(f"## {s.heading}\n\n{s.draft}" for s in state["drafted"])
 
     log_info(f"Article is ready ({plural(len(article), 'character')})")
 

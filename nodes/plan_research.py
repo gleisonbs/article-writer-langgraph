@@ -1,16 +1,15 @@
 from clients import model
 from logger import log_header, log_info, plural
-from schemas import ResearchPlan, State
-
 from nodes.render_brief import render_brief
 from nodes.research_is_sufficient import gaps_in
+from schemas import ResearchPlan, State
 
 
 def plan_research(state: State) -> dict:
     log_header("Planning Research")
 
     log_info(f"Topic: {state['topic']}")
-    log_info(f"Audience: {state["audience"]}")
+    log_info(f"Audience: {state['audience']}")
     log_info("Asking the model for search queries")
 
     gaps = gaps_in(state) if state["sources"] else []
@@ -31,6 +30,6 @@ def plan_research(state: State) -> dict:
 
     return {
         "facets": new_facets,
-        "queries": plan.queries, # type: ignore
-        "research_passes": state["research_passes"] + 1
+        "queries": plan.queries,  # type: ignore
+        "research_passes": state["research_passes"] + 1,
     }

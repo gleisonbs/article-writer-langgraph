@@ -8,3 +8,6 @@ class SectionTask(TypedDict):
     section: Section
     headings: list[str]
     sources: list[Source]
+    audience: str
+    tone: str
+    problems: list[str]
