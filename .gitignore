@@ -221,3 +221,6 @@ __marimo__/
 
 # text files
 *.txt
+
+# Articles output folder
+output/
