@@ -4,7 +4,8 @@
 
 A [LangGraph](https://langchain-ai.github.io/langgraph/) pipeline that turns a topic into
 a cited article. It researches the topic on the web, drafts the sections in parallel,
-checks its own work and rewrites the sections that fail.
+checks its own work and rewrites the sections that fail. Run it locally, or queue
+requests on SQS and let a worker pick them up.
 
 <img src="https://img.shields.io/badge/python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
 <img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?style=flat-square" alt="LangGraph">
@@ -125,6 +126,37 @@ uv run main.py "<topic>" "<audience>" "<tone>" <target_words>
 
 To trace runs in LangSmith, add `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` to `.env`.
 
+### Running through SQS
+
+There are three modes:
+
+```bash
+uv run main.py "<topic>" ...          # run locally and print the article
+uv run main.py "<topic>" ... --push   # send the request to the queue and exit
+uv run main.py --pull                 # wait for requests and run each one
+```
+
+`--push` takes the same arguments as a local run and sends them to the queue as JSON.
+`--pull` takes no topic, since requests come from the queue. It runs them one at a time
+and saves each article to `output/`, just like a local run.
+
+A message is deleted once its article is done. If a run fails, the message stays on the
+queue and SQS delivers it again after the visibility timeout. The worker doesn't extend
+that timeout, so set it on the queue to longer than one article takes.
+
+Add the queue to `.env`. `boto3` reads the AWS settings from there as well as from
+`~/.aws`:
+
+```ini
+SQS_INPUT_QUEUE_URL=https://sqs.<region>.amazonaws.com/<account-id>/<queue-name>
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=<region>
+```
+
+The key needs `sqs:SendMessage` to push and `sqs:ReceiveMessage` plus
+`sqs:DeleteMessage` to pull.
+
 ## What a run looks like
 
 Every step logs what it's doing. This is the critique loop from one run, abridged:
@@ -152,13 +184,14 @@ Every step logs what it's doing. This is the critique loop from one run, abridge
 ## Layout
 
 ```
-main.py        CLI entrypoint
+main.py        CLI entrypoint: local, --push and --pull
+worker.py      the --pull loop: takes requests off the queue and runs the graph
 graph.py       StateGraph wiring
 logger.py      colored console output
-clients/       the LLM and Tavily clients
+clients/       the LLM, Tavily and SQS clients
 nodes/         one module per node or router
-schemas/       Pydantic models and the graph State
-utils/         the drafted reducer and the critique checks
+schemas/       Pydantic models, the request, and the graph State
+utils/         the drafted reducer, the critique checks and the article printout
 tests/         pytest suite
 output/        saved articles (gitignored)
 ```

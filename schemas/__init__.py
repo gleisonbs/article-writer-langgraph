@@ -1,3 +1,4 @@
+from .article_request import ArticleRequest
 from .finding import Finding
 from .outline import Outline
 from .planned_query import PlannedQuery
@@ -9,6 +10,7 @@ from .state import State
 from .verdict import Verdict
 
 __all__ = [
+    "ArticleRequest",
     "Finding",
     "Outline",
     "PlannedQuery",

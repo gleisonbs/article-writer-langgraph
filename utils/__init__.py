@@ -1,3 +1,4 @@
+from .article_output import print_article
 from .reducers import merge_sections
 from .verifier import (
     SUPPORTED,
@@ -18,6 +19,7 @@ __all__ = [
     "check_structure",
     "merge_sections",
     "own_prose",
+    "print_article",
     "support_score",
     "tone_level",
 ]

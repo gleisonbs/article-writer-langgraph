@@ -12,7 +12,20 @@ from nodes import (
     route_after_critique,
     web_search,
 )
-from schemas import State
+from schemas import ArticleRequest, State
+
+
+def initial_state(request: ArticleRequest) -> dict:
+    return {
+        **request.model_dump(),
+        "facets": [],
+        "queries": [],
+        "query_log": [],
+        "sources": [],
+        "research_passes": 0,
+        "revision_count": 0,
+    }
+
 
 builder = StateGraph(State)
 
