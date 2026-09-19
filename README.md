@@ -151,7 +151,7 @@ Add the queue to `.env`. `boto3` reads the AWS settings from there as well as fr
 SQS_INPUT_QUEUE_URL=https://sqs.<region>.amazonaws.com/<account-id>/<queue-name>
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=<region>
+AWS_DEFAULT_REGION=<region>
 ```
 
 The key needs `sqs:SendMessage` to push and `sqs:ReceiveMessage` plus
