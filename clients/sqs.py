@@ -19,9 +19,7 @@ def queue_url(env_var: str) -> str:
     return url
 
 
-def _stop_now(sig: int) -> None:
-    # exit at once instead of waiting for the message in progress, which can take
-    # minutes; SQS redelivers it once its visibility timeout (set on the queue) runs out
+def _stop_now(sig: int, _frame) -> None:
     log_warning("Worker stopped")
     sys.stdout.flush()
     os._exit(128 + sig)
@@ -39,9 +37,8 @@ class SQSQueue:
         self._client = boto3.client("sqs")
 
     async def consume(self, handle: Callable[[str], Awaitable[None]]) -> None:
-        loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _stop_now, sig)
+            signal.signal(sig, _stop_now)  # loop.add_signal_handler fails on Windows
 
         while True:
             for message in await self._receive():
