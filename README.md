@@ -18,7 +18,7 @@ requests on SQS and let a worker pick them up.
 ---
 
 ```bash
-uv run main.py "The history of Casio watches" "a technical reader"
+uv run main.py --thread demo-1 --topic "The history of Casio watches" --audience "a technical reader"
 ```
 
 ## The flow
@@ -44,6 +44,10 @@ uv run main.py "The history of Casio watches" "a technical reader"
             ┌─────────────────────────────────┐
             │  build_outline                  │   sources ──▶ outline
             └─────────────────┬───────────────┘   (+ a word budget per section)
+                              ▼
+            ┌─────────────────────────────────┐
+            │  human_review                   │   outline ──▶ approved outline
+            └─────────────────┬───────────────┘   (interactive; --pull auto-approves)
                               ▼
                     ╔═══════════════════╗
                     ║ fan_out_sections  ║   router: one Send per section
@@ -87,6 +91,12 @@ Three routers steer the graph:
   with the old draft and the problems to fix. It stops when no blockers remain, after
   `BUDGET` passes, or when a pass stops reducing the failures.
 
+Between outlining and drafting, `human_review` pauses the graph and shows you the
+proposed outline and sources. Approve it as-is, or reject it to see the outline as JSON
+and paste back edits — reordering or dropping sections, or changing a heading, goal,
+word budget or which sources it cites. A run started with `--pull` has no one to ask, so
+it skips the pause and drafts the outline as proposed.
+
 `critique` runs these checks on the assembled article:
 
 | Check | Rule | Severity |
@@ -117,11 +127,21 @@ OPENAI_API_KEY=sk-...
 TAVILY_API_KEY=tvly-...
 ```
 
-Then run it. Only the topic is required, and the arguments are positional:
+Then run it. Only the topic is required, and give it a `--thread` id of your choosing —
+it's how you resume this run if you leave it paused, and runs left without one all share
+a single default thread and can stomp on each other's state:
 
 ```bash
-uv run main.py "<topic>" "<audience>" "<tone>" <target_words>
+uv run main.py --thread <id> --topic "<topic>" --audience "<audience>" --tone "<tone>" --target_words <n>
 # defaults: "a technical reader", "clear and direct", 800
+```
+
+It pauses once it has an outline and waits for your approval — see
+[human_review](#the-flow) above. Answer `n` twice (don't approve, don't provide edits) to
+leave it paused; resume it later with the same thread:
+
+```bash
+uv run main.py --thread <id>
 ```
 
 To trace runs in LangSmith, add `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` to `.env`.
@@ -131,14 +151,15 @@ To trace runs in LangSmith, add `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY`
 There are three modes:
 
 ```bash
-uv run main.py "<topic>" ...          # run locally and print the article
-uv run main.py "<topic>" ... --push   # send the request to the queue and exit
-uv run main.py --pull                 # wait for requests and run each one
+uv run main.py --thread <id> --topic "<topic>" ...   # run locally and print the article
+uv run main.py --topic "<topic>" ... --push          # send the request to the queue and exit
+uv run main.py --pull                                # wait for requests and run each one
 ```
 
 `--push` takes the same arguments as a local run and sends them to the queue as JSON.
-`--pull` takes no topic, since requests come from the queue. It runs them one at a time
-and saves each article to `output/`, just like a local run.
+`--pull` takes no topic, since requests come from the queue. It runs them one at a time,
+each on its own thread, and saves each article to `output/`. Since there's no one to ask,
+a pulled run auto-approves its outline instead of pausing for `human_review`.
 
 A message is deleted once its article is done. If a run fails, the message stays on the
 queue and SQS delivers it again after the visibility timeout. The worker doesn't extend
@@ -159,7 +180,23 @@ The key needs `sqs:SendMessage` to push and `sqs:ReceiveMessage` plus
 
 ## What a run looks like
 
-Every step logs what it's doing. This is the critique loop from one run, abridged:
+Every step logs what it's doing. After `build_outline`, it pauses and shows you what it
+plans to write:
+
+```
+🚀 Proposed Outline
+ℹ️  1. The Birth of a Rugged Icon
+  • [1] Casio's Shock Resistant Story - https://example.com/history
+  • [4] G-Shock at 40 - https://example.com/anniversary
+ℹ️  2. The G-Shock Gamble
+  • [4] G-Shock at 40 - https://example.com/anniversary
+ℹ️  Coverage — history: 3 domains, engineering: 2 domains
+
+approve? [y/N]
+```
+
+Answer `y` to start drafting, or `n` to see the outline as JSON and paste back edits.
+This is the critique loop from later in the same run, abridged:
 
 ```
 🚀 Critiquing the Article (pass 1)
@@ -170,9 +207,9 @@ Every step logs what it's doing. This is the critique loop from one run, abridge
 🚀 Routing After Critique
 ℹ️  Sending 1 section back for revision (pass 2/3):
 ℹ️  Redrafting: The G-Shock Gamble — 3 problems to fix:
-      • quote not in source 9: dropped from a third-floor bathroom window
-      • tone level 1, 3 lapses: "Casio basically went full send on toughness"
-      • 1043 words against a target of 800
+  • quote not in source 9: dropped from a third-floor bathroom window
+  • tone level 1, 3 lapses: "Casio basically went full send on toughness"
+  • 1043 words against a target of 800
 
 🚀 Critiquing the Article (pass 2)
 ✅ No blockers found
@@ -184,14 +221,17 @@ Every step logs what it's doing. This is the critique loop from one run, abridge
 ## Layout
 
 ```
-main.py        CLI entrypoint: local, --push and --pull
-worker.py      the --pull loop: takes requests off the queue and runs the graph
+main.py        CLI entrypoint: wires args, the run and the review loop together
+cli.py         argument parsing
+review.py      the interactive outline-approval loop
+runner.py      drives the graph: streams a run, resumes a paused thread
+worker.py      the --pull loop: takes requests off the queue and runs them unattended
 graph.py       StateGraph wiring
 logger.py      colored console output
 clients/       the LLM, Tavily and SQS clients
 nodes/         one module per node or router
 schemas/       Pydantic models, the request, and the graph State
-utils/         the drafted reducer, the critique checks and the article printout
+utils/         the drafted reducer, the critique checks and the CLI's output formatting
 tests/         pytest suite
 output/        saved articles (gitignored)
 ```
