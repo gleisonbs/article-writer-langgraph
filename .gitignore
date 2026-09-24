@@ -224,3 +224,6 @@ __marimo__/
 
 # Articles output folder
 output/
+
+# Sqlite files
+*.sqlite
