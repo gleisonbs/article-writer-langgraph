@@ -1,57 +1,14 @@
-import argparse
 import asyncio
 
-from clients import SQSQueue, queue_url
-from graph import graph, initial_state
-from logger import log_success
-from nodes import coverage
-from schemas import ArticleRequest
-from utils import print_article
+from cli import build_request, parse_args
+from review import run_until_done
+from runner import start_or_resume
+from utils import print_report
+from worker import push_request
 from worker import run as run_worker
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Write a cited article about a topic.")
-    parser.add_argument("topic", nargs="?")
-    parser.add_argument("audience", nargs="?")
-    parser.add_argument("tone", nargs="?")
-    parser.add_argument("target_words", nargs="?", type=int)
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--push", action="store_true", help="push this request to SQS_INPUT_QUEUE_URL"
-    )
-    mode.add_argument(
-        "--pull",
-        action="store_true",
-        help="pull requests from SQS_INPUT_QUEUE_URL and run them",
-    )
-    args = parser.parse_args()
-
-    if args.pull and args.topic:
-        parser.error("with --pull, topics come from the queue, not the command line")
-    if not args.pull and not args.topic:
-        parser.error("a topic is required, unless --pull is set")
-    return args
-
-
-def build_request(args: argparse.Namespace) -> ArticleRequest:
-    given = {
-        "topic": args.topic,
-        "audience": args.audience,
-        "tone": args.tone,
-        "target_words": args.target_words,
-    }
-    # anything left out falls back to ArticleRequest's defaults
-    return ArticleRequest(**{k: v for k, v in given.items() if v is not None})
-
-
-async def push_request(request: ArticleRequest) -> None:
-    queue = SQSQueue(queue_url("SQS_INPUT_QUEUE_URL"))
-    await queue.send(request.model_dump_json())
-    log_success(f"Pushed: {request.topic}")
-
-
-def main() -> None:
+def main():
     args = parse_args()
     if args.pull:
         asyncio.run(run_worker())
@@ -62,9 +19,13 @@ def main() -> None:
         asyncio.run(push_request(request))
         return
 
-    state = initial_state(request)
-    result = graph.invoke(state)  # type: ignore
-    print_article(result, coverage(result))  # type: ignore
+    thread, topic = args.thread, args.topic
+    config = {"configurable": {"thread_id": thread}}
+
+    state = start_or_resume(request, topic, config)
+    state = run_until_done(state, thread, config)
+
+    print_report(state)
 
 
 if __name__ == "__main__":

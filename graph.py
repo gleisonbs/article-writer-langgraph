@@ -1,3 +1,6 @@
+import sqlite3
+
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from nodes import (
@@ -7,6 +10,7 @@ from nodes import (
     draft_section,
     fan_out_sections,
     final_polish,
+    human_review,
     plan_research,
     reseach_is_sufficient,
     route_after_critique,
@@ -15,7 +19,7 @@ from nodes import (
 from schemas import ArticleRequest, State
 
 
-def initial_state(request: ArticleRequest) -> dict:
+def get_initial_state(request: ArticleRequest) -> dict:
     return {
         **request.model_dump(),
         "facets": [],
@@ -32,6 +36,7 @@ builder = StateGraph(State)
 builder.add_node("plan_research", plan_research)
 builder.add_node("web_search", web_search)
 builder.add_node("build_outline", build_outline)
+builder.add_node("human_review", human_review)
 builder.add_node("draft_section", draft_section)  # type: ignore
 builder.add_node("assemble_article", assemble_article)
 builder.add_node("critique", critique)
@@ -42,7 +47,8 @@ builder.add_edge("plan_research", "web_search")
 builder.add_conditional_edges(
     "web_search", reseach_is_sufficient, ["plan_research", "build_outline"]
 )
-builder.add_conditional_edges("build_outline", fan_out_sections, ["draft_section"])
+builder.add_edge("build_outline", "human_review")
+builder.add_conditional_edges("human_review", fan_out_sections, ["draft_section"])
 builder.add_edge("draft_section", "assemble_article")
 builder.add_edge("assemble_article", "critique")
 builder.add_conditional_edges(
@@ -50,5 +56,10 @@ builder.add_conditional_edges(
 )
 builder.add_edge("final_polish", END)
 
-graph = builder.compile()
-# graph.get_graph().draw_mermaid_png(output_file_path="flow.png")
+checkpointer = SqliteSaver(
+    sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
+)
+
+graph = builder.compile(checkpointer=checkpointer)
+graph.get_graph().draw_mermaid_png(output_file_path="flow.png")
+

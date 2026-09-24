@@ -3,24 +3,26 @@ from urllib.parse import urlsplit
 
 from schemas import State
 
-K, MAX_PASSES = 2, 3
+MAX_PASSES = 1
+MIN_DOMAIN_COUNT = 1
 
 
-def coverage(state: State) -> dict[str, int]:
+def domains_per_facet(state: State) -> dict[str, int]:
     """Distinct DOMAINS per facet - three pages from one site is one opinion"""
     hosts = defaultdict(set)
-    for s in state["sources"]:
-        host = urlsplit(s["url"]).hostname or ""
-        for facet in s["facets"]:
+    for source in state["sources"]:
+        host = urlsplit(source["url"]).hostname or ""
+        for facet in source["facets"]:
             hosts[facet].add(host)
-    return {f: len(hosts[f]) for f in state["facets"]}
+    return {facet: len(hosts[facet]) for facet in state["facets"]}
 
 
-def gaps_in(state: State) -> list[str]:
-    return [f for f, n in coverage(state).items() if n < K]
+def facets_below_min_domain_count(state: State) -> list[str]:
+    return [facet for facet, domain_count in domains_per_facet(state).items() 
+            if domain_count < MIN_DOMAIN_COUNT]
 
 
 def reseach_is_sufficient(state: State) -> str:
-    if not gaps_in(state) or state["research_passes"] >= MAX_PASSES:
+    if not facets_below_min_domain_count(state) or state["research_passes"] >= MAX_PASSES:
         return "build_outline"
     return "plan_research"

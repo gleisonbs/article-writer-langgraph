@@ -1,3 +1,6 @@
+import sys
+
+
 # Color codes for better logging
 class Colors:
     PURPLE = "\033[95m"
@@ -37,6 +40,24 @@ def log_header(message: str):
     print(f"\n{Colors.BOLD}{Colors.PURPLE}{'=' * 60}{Colors.END}")
     print(f"{Colors.BOLD}{Colors.PURPLE}🚀 {message}{Colors.END}")
     print(f"{Colors.BOLD}{Colors.PURPLE}{'=' * 60}{Colors.END}\n")
+
+
+def log_prompt(message: str) -> str:
+    """Prompt for input, styled like the rest of the CLI"""
+    return input(f"{Colors.BOLD}{Colors.BLUE}{message}{Colors.END}")
+
+
+def log_paste(message: str) -> str:
+    """Prompt for a multi-line paste; `input()` truncates those, so this reads to EOF"""
+    print(f"{Colors.BOLD}{Colors.BLUE}{message} (end with Ctrl-D):{Colors.END}")
+    return sys.stdin.read()
+
+
+def log_list(items: list[str], indent: int = 1) -> None:
+    """Log a bullet list, one item per line"""
+    prefix = "  " * indent
+    for item in items:
+        print(f"{Colors.CYAN}{prefix}• {item}{Colors.END}")
 
 
 def plural(count: int, singular: str, plural_form: str | None = None) -> str:

@@ -1,5 +1,5 @@
 from clients import model
-from logger import log_info, plural
+from logger import log_info, log_list, plural
 from schemas import SectionTask
 
 CITATION_RULE = (
@@ -62,10 +62,8 @@ def draft_section(task: SectionTask) -> dict:
     problems = task.get("problems") or []
 
     if problems:
-        log_info(
-            f"Redrafting: {section.heading} — {plural(len(problems), 'problem')} to fix:\n"
-            + "\n".join(f"\t• {p}" for p in problems)
-        )
+        log_info(f"Redrafting: {section.heading} — {plural(len(problems), 'problem')} to fix:")
+        log_list(problems)
         prompt = redraft_prompt(task, problems)
     else:
         log_info(f"Drafting: {section.heading} - {section.target_words} words")
